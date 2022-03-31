@@ -22,8 +22,7 @@ function [state,cov] = predict(inputs,dt,X,P,A,Q)
     state(1:3,4) = p2;
     state(1:3,5) = v2;
     state(1:3,6) = d;
-    'before'
+
     phi = expm(A*dt);
-    'after'
     cov = phi*P*phi' + Adj(X)*(phi*Q*phi'*dt)*Adj(X)';
 end
