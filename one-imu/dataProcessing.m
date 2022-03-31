@@ -34,10 +34,12 @@ run matrices.m;  % initialize matrices
 
 % Initialize first rotation based on IMU instead?
 X = blkdiag(cell2mat(fkTable{1,'femur_r'}),eye(2));  % adding two extra columns
-P = eye(12);  % 3 for rotation, 3x3 more for p1,v1,d
-Q = eye(12);
-N = eye(6);
-fp_base = table2array(fp_data(1,meas_vars));
+% Initialize contact point? Still no help
+calcn_init = cell2mat(fkTable{1,'calcn_r'});
+X(1:3,6) = calcn_init(1:3,4);
+P = blkdiag(0.1*eye(3),0.1*eye(3),0.1*eye(3),0.0001*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
+Q = blkdiag(0.1*eye(3),0.1*eye(3),0.01*eye(3),0.0001*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
+N = 0.01*eye(6);  % Do the last three matter?
 log = {fkTable{1,'Header'},X,P};
 for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % time difference from last step
@@ -59,27 +61,40 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % get inputs from imu
     imu_row = table2array(imu_data(:,'Header'))==t;
     inputs = table2array(imu_data(imu_row,input_vars))';
+    % Need to align axes properly. FK axes for femur are y up, z forward.
+    % IMU axes are z forward, y medial (inward), so need:
+    % x_imu = -y_fk, y_imu = x_fk, z_imu = z_fk
+    % x_fk = y_imu, y_fk = -x_imu, z_fk = z_imu
+    inputs = [inputs(2);-inputs(1);inputs(3);...
+            inputs(4);-inputs(5);inputs(6)];
+    % Check with and without this
+    inputs(1:3) = inputs(1:3)*pi/180;
     [X,P] = predict(inputs, dt, X, P, A, Q);
-    fp_row = table2array(fp_data(:,'Header'))==t;
-    fp_meas = table2array(fp_data(fp_row,meas_vars));
-    % for ccw, want fp1 and fp6 (guessing these, though fp1 is a solid
-    % guess)
-    if norm(fp_meas-fp_base) > 0.1  % arbitrary threshold
-        Nt = N;
-        % manually set the contact point, need to fix this later to do it
-        % only once
-        heel = cell2mat(fkTable{i,'calcn_r'});
-        X(1:3,6) = heel(1:3,4);
-        % perhaps need to add expansion/contraction of 
-        'not here'
-    else
-        Nt = 1000*N;  % don't trust contact point if not in contact
-    end
+    % Use mocap for contact events
+    
+
     % actual measurement is the vector to the contact point found in
     % forward kinematics (in world frame or body frame?)
+    % Since we are getting relative position of the foot, not using the
+    % state in this calculation is suitable.
     T1 = cell2mat(fkTable{i,'femur_r'});
     T2 = cell2mat(fkTable{i,'calcn_r'});
+    % use T2 to determine contact
+    % Could possibly include toes as extra contact point in future
+    if T2(3,4) > 0.008  % heuristic, but a good one, (8cm?)
+        Nt = 10000*N;  % don't trust contact point if not in contact
+    else
+        % Need to be careful with this, if setting at each timestep then it
+        % may implicitly violate zero-velocity constraint, or we may be
+        % getting unrealistically accurate measurements.
+        % Shouldn't be too much a problem though, since we're taking the
+        % femur->calcaneus vector from FK, and (estimate)->calcaneus vector
+        % within the correction step
+        X(1:3,6) = T2(1:3,4);
+    end
     v_fc = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4)); % Just want to rotate
+    % Try without rotation? Similar result
+    % v_fc = T2(1:3,4) - T1(1:3,4);
     meas = [v_fc; 1; 0; -1];
     [X,P] = update(meas,X,P,Hd,bd,Nt);
     log{i,1} = t;
