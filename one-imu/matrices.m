@@ -10,3 +10,6 @@ Hd = zeros(6,12);
 Hd(1:3,4:6) = -eye(3);
 Hd(1:3,10:12) = eye(3);
 
+Hd_reduced = Hd(1:3,:);
+bd_reduced = bd(1:3);
+

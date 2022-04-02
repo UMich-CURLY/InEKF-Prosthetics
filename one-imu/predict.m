@@ -1,4 +1,8 @@
 function [state,cov] = predict(inputs,dt,X,P,A,Q)
+
+    if sum(isnan(X(:))) > 0 || sum(isnan(P(:))) > 0
+        warning('NaN in X')
+    end
     g = [0; 0; -9.81];
     % assume we already rotate the acceleration via forward kinematics for
     % the second link
