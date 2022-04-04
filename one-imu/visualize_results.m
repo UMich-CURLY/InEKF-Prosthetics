@@ -21,6 +21,5 @@ title('Difference in Euler angles between ground truth & predicted')
 
 figure(2)
 plot(1:length(log),comp_log(:,4:6))
-ylim([-10,10])
 legend('x','y','z')
 title('Delta between predicted and actual femur point')

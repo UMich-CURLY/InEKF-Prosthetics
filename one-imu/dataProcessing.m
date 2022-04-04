@@ -36,7 +36,8 @@ run matrices.m;  % initialize matrices
 X = blkdiag(cell2mat(fkTable{1,'femur_r'}),eye(2));  % adding two extra columns
 % Initialize contact point? Still no help
 calcn_init = cell2mat(fkTable{1,'calcn_r'});
-imu_p = X(1:3,1:3)'*(calcn_init(1:3,4)-X(1:3,4));  % Transpose instead of \?
+tibia_init = cell2mat(fkTable{1,'tibia_r'});
+imu_p = X(1:3,1:3)'*(tibia_init(1:3,4)-X(1:3,4))/2;  % Transpose instead of \?
 X(1:3,6) = calcn_init(1:3,4);
 P0 = blkdiag(0.1*eye(3),0.1*eye(3),0.1*eye(3),0.1*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
 P = P0;
@@ -71,7 +72,8 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     inputs = [inputs(2);-inputs(1);inputs(3);...
             inputs(4);-inputs(5);inputs(6)];
     % compensate linear velocity w/ displacement of IMU
-    inputs(4:6) = inputs(4:6) - skew3x3(inputs(1:3))*imu_p;
+    % This line is sus, am I doing it right?
+    inputs(4:6) = inputs(4:6) + skew3x3(inputs(1:3))*imu_p;
     % Check with and without this
     inputs(1:3) = inputs(1:3)*pi/180;
     [X,P] = predict(inputs, dt, X, P, A, Q);
@@ -90,7 +92,7 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % use T2 to determine contact
     % Could possibly include toes as extra contact point in future
     if T2(3,4) > 0.008  % heuristic, but a good one, (8cm?)
-        Nt = 1000*N_reduced;  % don't trust contact point if not in contact
+        Nt = 1000*N;  % don't trust contact point if not in contact
         % Going back to "skipping" strategy?
         log{i,1} = t;
         log{i,2} = X;
@@ -102,7 +104,7 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
         % Shouldn't be too much a problem though, since we're taking the
         % femur->calcaneus vector from FK, and (estimate)->calcaneus vector
         % within the correction step
-        Nt = N_reduced;
+        Nt = N;
         % Do I want to zero-out the z? would that help?
     end
     % Setting it regardless of whether or not we have contact, just to not
@@ -112,7 +114,7 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % Try without rotation? Similar result
     % v_fc = T2(1:3,4) - T1(1:3,4);
     meas = [v_fc; 1; 0; -1];
-    [X,P] = update(meas,X,P,Hd_reduced,bd_reduced,Nt);
+    [X,P] = update(meas,X,P,Hd,bd,Nt);
     log{i,1} = t;
     log{i,2} = X;
     log{i,3} = P;
