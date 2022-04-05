@@ -5,11 +5,16 @@ fpfile = "10_09_18/levelground/fp/levelground_ccw_slow_01_01.mat";
 imu_data = load(filepre+imufile).data;
 fp_data = load(filepre+fpfile).data;
 osimfile = "osimxml/AB06.osim";
-vis = 0;
 % options used to generate the fkTable
-fkTable = FK(filepre+motfile,filepre+osimfile, ...
-    'OutputType','H', ...
-    'Transform','zup');
+check = exist('fkTable','var');
+if ~check
+    fkTable = FK(filepre+motfile,filepre+osimfile, ...
+        'OutputType','H', ...
+        'Transform','zup');
+    disp('FK Table loaded from Osim')
+else
+    disp('FK Table present')
+end
 % fkTable = load('fkTable.mat','fkTable').fkTable;
 loc_rot_vars = {'torso_x','torso_y','torso_z';
     'pelvis_x','pelvis_y','pelvis_z';
@@ -54,19 +59,6 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % time difference from last step
     t = fkTable{i,'Header'};
     dt = fkTable{i,'Header'}-fkTable{i-1,'Header'};
-    % fkTable1 = fkTable{t,loc_rot_vars'};
-    % fkxyz = reshape(fkTable1,3,12);
-    fkTable1 = fkTable{i,H_vars};
-    rleg = 1:7;
-    lleg = [1,2,8:12];
-    if vis
-        vis_tforms(fkTable1(lleg),'r','.')
-        axis equal;
-        hold on;
-        vis_tforms(fkTable1(rleg),'b','.')
-        hold off;
-        pause(.005)
-    end
     % get inputs from imu
     imu_row = table2array(imu_data(:,'Header'))==t;
     inputs = table2array(imu_data(imu_row,input_vars))';
@@ -74,9 +66,12 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % IMU axes are z forward, y medial (inward), so need:
     % x_imu = -y_fk, y_imu = x_fk, z_imu = z_fk
     % x_fk = y_imu, y_fk = -x_imu, z_fk = z_imu
-    inputs = [inputs(2);-inputs(1);inputs(3);...
-            inputs(5);-inputs(4);inputs(6);...
-            inputs(8);-inputs(7);inputs(9)];
+    % 4/5/2022: The above is wrong, it is actually
+    % x_fk = z_imu, y_fk = -x_imu, z_fk = -y_imu
+    inputs = [inputs(1);-inputs(1);-inputs(2);...
+            inputs(6);-inputs(4);-inputs(5);...
+            inputs(9);-inputs(7);-inputs(8)];
+    % And yet, the results weren't any better...
     % compensate linear velocity w/ displacement of IMU
     % This line is sus, am I doing it right?
     % inputs(4:6) = inputs(4:6) - skew3x3(inputs(1:3))*imu1_p;  % omega x OA is linear velocity due to acceleration, so this needs to change
