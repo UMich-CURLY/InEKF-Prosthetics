@@ -6,5 +6,5 @@ function [state,cov] = update(meas,X,P,H,b,N) % dt necessary?
     % measurement beforehand
     state = expm(L*(blkdiag(X,X)*meas-b))*X;
     LH = L*H;
-    cov = (eye(size(LH))-LH)*P*(eye(size(LH))-LH) + L*N*L';
+    cov = (eye(size(LH))-LH)*P*(eye(size(LH))-LH)' + L*N*L';
 end

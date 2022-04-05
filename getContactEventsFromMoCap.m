@@ -14,3 +14,8 @@ end
 plot(zs)
 hold on
 yline(0.008)  % 8
+
+% Use this to plot Euler angles over time to determine radians or degrees,
+% alongside the simulation being drawn (use subfigures?)
+% Could be useful to have a visualization pipeline that runs ground truth,
+% estimated, and individual stats altogether as a video

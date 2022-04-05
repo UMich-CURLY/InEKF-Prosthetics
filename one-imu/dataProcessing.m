@@ -27,17 +27,18 @@ H_vars = {'torso','pelvis',...
     'femur_r','tibia_r','talus_r','calcn_r','toes_r',...
     'femur_l','tibia_l','talus_l','calcn_l','toes_l'};
 input_vars = {'thigh_Gyro_X','thigh_Gyro_Y','thigh_Gyro_Z',...
-    'thigh_Accel_X','thigh_Accel_Y','thigh_Accel_Z'};
+    'thigh_Accel_X','thigh_Accel_Y','thigh_Accel_Z', ...
+    'shank_Accel_X','shank_Accel_Y','shank_Accel_Z'};
 meas_vars = {'FP1_px','FP1_py','FP1_pz','FP1_vx','FP1_vy','FP1_vz',...
     'FP6_px','FP6_py','FP6_pz','FP6_vx','FP6_vy','FP6_vz'};
 run matrices.m;  % initialize matrices
 
 % Initialize first rotation based on IMU instead?
-X = blkdiag(cell2mat(fkTable{1,'femur_r'}),eye(2));  % adding two extra columns
+X = blkdiag(cell2mat(fkTable{1,'femur_r'}),eye(4));  % adding four extra columns
 % Initialize contact point? Still no help
 calcn_init = cell2mat(fkTable{1,'calcn_r'});
 tibia_init = cell2mat(fkTable{1,'tibia_r'});
-imu_p = X(1:3,1:3)'*(tibia_init(1:3,4)-X(1:3,4))/2;  % Transpose instead of \?
+imu1_p = X(1:3,1:3)'*(tibia_init(1:3,4)-X(1:3,4))/2;  % Transpose instead of \?
 X(1:3,6) = calcn_init(1:3,4);
 P0 = blkdiag(0.1*eye(3),0.1*eye(3),0.1*eye(3),0.1*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
 P = P0;
@@ -70,10 +71,10 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % x_imu = -y_fk, y_imu = x_fk, z_imu = z_fk
     % x_fk = y_imu, y_fk = -x_imu, z_fk = z_imu
     inputs = [inputs(2);-inputs(1);inputs(3);...
-            inputs(4);-inputs(5);inputs(6)];
+            inputs(5);-inputs(4);inputs(6)];
     % compensate linear velocity w/ displacement of IMU
     % This line is sus, am I doing it right?
-    inputs(4:6) = inputs(4:6) + skew3x3(inputs(1:3))*imu_p;
+    inputs(4:6) = inputs(4:6) + skew3x3(inputs(1:3))*imu1_p;
     % Check with and without this
     inputs(1:3) = inputs(1:3)*pi/180;
     [X,P] = predict(inputs, dt, X, P, A, Q);
