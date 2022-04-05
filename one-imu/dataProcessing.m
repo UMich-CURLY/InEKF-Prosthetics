@@ -76,7 +76,7 @@ for i = 2:3068  % 3068 is number of timesteps for which we have IMU
     % This line is sus, am I doing it right?
     inputs(4:6) = inputs(4:6) + skew3x3(inputs(1:3))*imu1_p;
     % Check with and without this
-    inputs(1:3) = inputs(1:3)*pi/180;
+    % inputs(1:3) = inputs(1:3)*pi/180; 
     [X,P] = predict(inputs, dt, X, P, A, Q);
     if sum(isnan(P(:))) > 0
         warning('Detected NaN in P')
