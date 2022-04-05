@@ -4,7 +4,11 @@ function [state,cov] = update(meas,X,P,H,b,N) % dt necessary?
 
     % Assumes measurement is formatted correctly, also assumes stacked
     % measurement beforehand
-    state = expm(L*(blkdiag(X,X)*meas-b))*X;
+    error = blkdiag(X,X)*meas - b;
+    innovation = lie_groupify(L*error);
+    state = expm(innovation)*X;
     LH = L*H;
-    cov = (eye(size(LH))-LH)*P*(eye(size(LH))-LH)' + L*N*L';
+    Xk = blkdiag(X,X);
+    Nk = Xk*N*Xk';
+    cov = (eye(size(LH))-LH)*P*(eye(size(LH))-LH)' + L*Nk*L';
 end

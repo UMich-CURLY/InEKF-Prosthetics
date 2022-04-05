@@ -1,9 +1,8 @@
-function [state,cov] = predict(inputs,dt,X,P,A,Q)
-    g = [0, 0, -9.81];
+function [state,cov] = predict(inputs,dt,fk2,imu1_p,imu2_p,X,P,A,Q)
+    g = [0; 0; -9.81];
     omega = skew3x3(inputs(1:3));
     a1 = inputs(4:6);
     a2 = inputs(7:9);
-    fk2 = 1;  % Figure out how to get this in? Make it another parameter
     % needs to be rotation from first frame to second frame, so 
     % fk2 = R_{WF}\R_{WT}, world->femur and world->tibia gives femur->tibia
     % assume we already rotate the acceleration via forward kinematics for
@@ -19,8 +18,10 @@ function [state,cov] = predict(inputs,dt,X,P,A,Q)
     
     RdX = expm(omega*dt);
     v1dX = (R*a1 + g)*dt;
+    v1dX = v1dX - omega*imu1_p*dt;  % May need to remove these lines if it does nothing, if only for clarity
     p1dX = v1*dt + 0.5*v1dX*dt;
     v2dX = (R*fk2*a2 + g)*dt;
+    v2dX = v2dX - omega*imu2_p*dt;
     p2dX = v2*dt + 0.5*v2dX*dt;
 
     state = eye(size(X));
