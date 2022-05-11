@@ -1,9 +1,10 @@
 comp_log = zeros(length(log),6);
+bias_log = zeros(length(log),9);
 gt_traj = zeros(length(log),3);
 filt_traj = zeros(length(log),3);
 for i = 1:length(log)
     % measure norm of Lie bracket for rotations
-    gt = cell2mat(fkTable{i+initial-1,'femur_r'});
+    gt = cell2mat(fkTable{i,'femur_r'});
     filt = log{i,2};
     R_gt = gt(1:3,1:3);
     R_filt = filt(1:3,1:3);
@@ -14,6 +15,8 @@ for i = 1:length(log)
     p_diff = p_filt-p_gt;
 
     comp_log(i,:) = [rot_diff,p_diff'];
+    bias = log{i,4};
+    bias_log(i,:) = bias;
 
     gt_traj(i,:) = p_gt;
     filt_traj(i,:) = p_filt;
@@ -36,3 +39,15 @@ plot3(filt_traj(:,1),filt_traj(:,2),filt_traj(:,3),'Color','b');
 % plot initial points
 plot3(gt_traj(1,1),gt_traj(1,2),gt_traj(1,3),'Color','g','Marker','*')
 plot3(filt_traj(1,1),filt_traj(1,2),filt_traj(1,3),'Color','b','Marker','*')
+
+figure(4)
+plot(1:length(log),bias_log(:,1:3))
+legend('bgx','bgy','bgz')
+
+figure(5)
+plot(1:length(log),bias_log(:,4:6))
+legend('ba1x','ba1y','ba1z')
+
+figure(6)
+plot(1:length(log),bias_log(:,7:9))
+legend('ba2x','ba2y','ba2z')

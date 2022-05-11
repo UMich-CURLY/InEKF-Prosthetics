@@ -39,7 +39,7 @@ meas_vars = {'FP1_px','FP1_py','FP1_pz','FP1_vx','FP1_vy','FP1_vz',...
     'FP6_px','FP6_py','FP6_pz','FP6_vx','FP6_vy','FP6_vz'};
 run matrices.m;  % initialize matrices
 
-initial=1657;
+initial=1;
 % Initialize first rotation based on IMU instead?
 X = blkdiag(cell2mat(fkTable{initial,'femur_r'}),eye(4));  % adding four extra columns
 % Initialize contact point? Still no help
@@ -70,13 +70,17 @@ P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.00001*eye(3),0.01*eye(3),0.01*eye(3),0
 % Pairwise:
 % Decreasing p1 & v1 just makes it look like p1 was decreased
 % Is the initial orientation frame different than expected?
+bias0 = zeros(9,1);
 P = P0;
+bias = bias0;
 Q = blkdiag(0.0001*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
 % Covariance adjustment effects:
+% R: 
+Q_block = blkdiag(Q,0.001*eye(9));  % Q plus IMU biases
 
 N = 0.001*eye(8);  % Do the last five matter? Only first three go into measurements currently
 N_reduced = N(1:3,1:3);
-log = {fkTable{1,'Header'},X,P};
+log = {fkTable{1,'Header'},X,P,bias};
 contact = 0;
 for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
     % time difference from last step
@@ -108,7 +112,11 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
     T3 = cell2mat(fkTable{i,'calcn_r'});
     fk2 = T1(1:3,1:3)'*T2(1:3,1:3);  % Right order?
     T1to3 = T1\T3;
-    [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
+    A_block = Ablock(X,A);
+    % HACK: re-augmenting the state covariance every time we go through the
+    % loop
+    P_block = blkdiag(P,0.001*eye(9));
+    [X,P] = predict(inputs, dt, fk2, bias, X, P_block, A_block, Q_block);
     if sum(isnan(P(:))) > 0
         warning('Detected NaN in P')
     end
@@ -132,6 +140,7 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
         log{i-initial+1,1} = t;
         log{i-initial+1,2} = X;
         log{i-initial+1,3} = P;
+        log{i-initial+1,4} = bias;
     else
         if ~contact
             contact = 1;
@@ -161,9 +170,10 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
     meas = [measp2; measd];
     H = [Hp2; Hd];
     b = [bp2; bd];
-    Nt = blkdiag(100*N,Nt);  % only apply cov increase to contact point
-    [X,P] = update(meas,X,P,H,b,Nt);
+    Nt = blkdiag(N,Nt);  % only apply cov increase to contact point
+    [X,P,bias] = update(meas,bias,X,P,H,b,Nt);
     log{i-initial+1,1} = t;
     log{i-initial+1,2} = X;
     log{i-initial+1,3} = P;
+    log{i-initial+1,4} = bias;
 end
