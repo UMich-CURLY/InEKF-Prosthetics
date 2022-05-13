@@ -1,53 +1,17 @@
-filepre = "../../AB06/AB06/";
-motfile = "10_09_18/levelground/ik/levelground_ccw_slow_01_01.mat";
-imufile = "10_09_18/levelground/imu/levelground_ccw_slow_01_01.mat";
-fpfile = "10_09_18/levelground/fp/levelground_ccw_slow_01_01.mat";
-imu_data = load(filepre+imufile).data;
-fp_data = load(filepre+fpfile).data;
-osimfile = "osimxml/AB06.osim";
-% options used to generate the fkTable
-check = exist('fkTable','var');
-if ~check
-    fkTable = FK(filepre+motfile,filepre+osimfile, ...
-        'OutputType','H', ...
-        'Transform','zup');
-    disp('FK Table loaded from Osim')
-else
-    disp('FK Table present')
-end
-% fkTable = load('fkTable.mat','fkTable').fkTable;
-loc_rot_vars = {'torso_x','torso_y','torso_z';
-    'pelvis_x','pelvis_y','pelvis_z';
-    'femur_r_x','femur_r_y','femur_r_z';
-    'tibia_r_x','tibia_r_y','tibia_r_z';
-    'talus_r_x','talus_r_y','talus_r_z';
-    'calcn_r_x','calcn_r_y','calcn_r_z';
-    'toes_r_x','toes_r_y','toes_r_z';
-    'femur_l_x','femur_l_y','femur_l_z';
-    'tibia_l_x','tibia_l_y','tibia_l_z';
-    'talus_l_x','talus_l_y','talus_l_z';
-    'calcn_l_x','calcn_l_y','calcn_l_z';
-    'toes_l_x','toes_l_y','toes_l_z'};
-H_vars = {'torso','pelvis',...
-    'femur_r','tibia_r','talus_r','calcn_r','toes_r',...
-    'femur_l','tibia_l','talus_l','calcn_l','toes_l'};
-input_vars = {'thigh_Gyro_X','thigh_Gyro_Y','thigh_Gyro_Z',...
-    'thigh_Accel_X','thigh_Accel_Y','thigh_Accel_Z', ...
-    'shank_Accel_X','shank_Accel_Y','shank_Accel_Z'};
-shank_vars = {'shank_Gyro_X','shank_Gyro_Y','shank_Gyro_Z'};
-meas_vars = {'FP1_px','FP1_py','FP1_pz','FP1_vx','FP1_vy','FP1_vz',...
-    'FP6_px','FP6_py','FP6_pz','FP6_vx','FP6_vy','FP6_vz'};
+run load_dataset.m;
 run matrices.m;  % initialize matrices
 
 initial=1657;
 % Initialize first rotation based on IMU instead?
-X = blkdiag(cell2mat(fkTable{initial,'femur_r'}),eye(4));  % adding four extra columns
+femur_init = cell2mat(fkTable{initial,'femur_r'};
+X = blkdiag(femur_init,eye(4));  % adding four extra columns
 % Initialize contact point? Still no help
 tibia_init = cell2mat(fkTable{initial,'tibia_r'});
 ankle_init = cell2mat(fkTable{initial,'talus_r'});
 calcn_init = cell2mat(fkTable{initial,'calcn_r'});
 imu1_p = X(1:3,1:3)'*(tibia_init(1:3,4)-X(1:3,4))/2;  % Transpose instead of \?
 imu2_p = tibia_init(1:3,1:3)'*(ankle_init(1:3,4)-tibia_init(1:3,4));
+fk_params = rough_fk_param_estimate(femur_init,tibia_init,ankle_init,calcn_init);
 X(1:3,6) = tibia_init(1:3,4);
 X(1:3,8) = calcn_init(1:3,4);
 P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.00001*eye(3),0.01*eye(3),0.01*eye(3),0.0001*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
@@ -108,7 +72,8 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
     T3 = cell2mat(fkTable{i,'calcn_r'});
     fk2 = T1(1:3,1:3)'*T2(1:3,1:3);  % Right order?
     T1to3 = T1\T3;
-    [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
+    % [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
+    [X,P] = predict(inputs, dt, fk2, X, P, A, Q);
     if sum(isnan(P(:))) > 0
         warning('Detected NaN in P')
     end
