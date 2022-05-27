@@ -1,10 +1,10 @@
 run load_dataset.m;
 run matrices.m;  % initialize matrices
 
-initial=1;
+initial=16;
 % Initialize first rotation based on IMU instead?
 femur_init = cell2mat(fkTable{initial,'femur_r'});
-X = blkdiag(femur_init,eye(4));  % adding four extra columns, for v1, p2, v2
+X = blkdiag(femur_init,eye(3));  % adding four extra columns, for v1, p2, v2
 % Initialize contact point in the filter when contact is found
 tibia_init = cell2mat(fkTable{initial,'tibia_r'});
 ankle_init = cell2mat(fkTable{initial,'talus_r'});
@@ -15,9 +15,9 @@ imu1_p = X(1:3,1:3)'*(tibia_init(1:3,4)-X(1:3,4))/2;  % Transpose instead of \?
 imu2_p = tibia_init(1:3,1:3)'*(ankle_init(1:3,4)-tibia_init(1:3,4));
 
 fk_params = rough_fk_estimate(femur_init,tibia_init,ankle_init,calcn_init);
+fk_cov = 0.01*eye(3);
 X(1:3,6) = tibia_init(1:3,4);
-X(1:3,8) = calcn_init(1:3,4);
-P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.0001*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
+P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.00001*eye(3),0.01*eye(3),0.01*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
 % Changing last one causes large shifts in accuracy - try for yourself
 % -- e.g. smaller -> less drift over time. Further decreases past 0.0001
 % don't affect x/y as much as z
@@ -38,27 +38,14 @@ P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.00001*eye(3),0.01*eye(3),0
 % Decreasing p1 & v1 just makes it look like p1 was decreased
 % Is the initial orientation frame different than expected?
 P = P0;
-Q = blkdiag(0.001*eye(3),0.0001*eye(3),10*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
-% Covariance adjustment effects:
-% R: bigger -> bigger difference in euler angles vs. gt, more loop-de-loop.
-% Decreasing past 0.001 doesn't give much
-% p1: bigger -> subtle differences, not sure what they are
-% v1: smaller -> major difference in how far off trajectory was. Bigger ->
-% may produce better results? On the order of 1 or higher?
-% p2: bigger -> flatter trajectory? Maybe. Slightly worse Euler angle
-% deltas maybe
-% v2: bigger -> flatter trajectory that doesn't go as far, decreasing
-% doesn't gain much past 0.01
-% d: bigger -> more trajectory drift, but no visual gains past 0.001 to
-% 0.0001
+Q = blkdiag(0.0001*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
+% Covariance adjustment effects: see non-contact point removal version
 
 Np2 = 0.1*eye(8);  % Do the last five matter? Only first three go into measurements currently
 % bigger -> trajectory drifts downward faster, more spiky
 % smaller -> trajectory also goes down, but is smoother
 Nd = 0.001*eye(8);
-% bigger -> trajectory goes straight down then stays in place for a time
-% smaller -> 
-log = {fkTable{1,'Header'},X,P,zeros(16,1)};
+log = {fkTable{1,'Header'},X,P};
 contact = 0;
 for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we have IMU
     % time difference from last step
@@ -71,16 +58,10 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     % IMU axes are z forward, y medial (inward), and x down, so need:
     % x_imu = -y_fk, y_imu = -z_fk, z_imu = x_fk
     % x_fk = z_imu, y_fk = -x_imu, z_fk = -y_imu
+    % I'm still not sold on this...
     inputs = [inputs(3);-inputs(1);-inputs(2);...
             inputs(6);-inputs(4);-inputs(5);...
             inputs(9);-inputs(7);-inputs(8)];
-
-    % Try just to transfer IMU to world frame, not body frame?
-    % -x_imu = z_world, -y_imu = x_world, z_imu = y_world
-    %inputs = [-inputs(2);inputs(3);-inputs(1);...
-    %          -inputs(5);inputs(6);-inputs(4);...
-    %          -inputs(8);inputs(9);-inputs(7)];
-
     % And yet, the results weren't any better...
     % compensate linear velocity w/ displacement of IMU
     % This line is sus, am I doing it right?
@@ -98,9 +79,17 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     fk2 = T1(1:3,1:3)'*T2(1:3,1:3);  % Right order?
     T1to3 = T1\T3;
     % [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
-    [X,P] = predict(inputs, dt, fk2, X, P, A, Q);
+    if contact
+        [X,P] = predict(inputs, dt, fk2, X, P, A, Q);
+    else
+        [X,P] = predict_nocontact(inputs, ...
+            dt, fk2, X, P, A(1:15,1:15), Q(1:15,1:15));
+    end
+
     if sum(isnan(P(:))) > 0
         warning('Detected NaN in P')
+        disp(i)
+        return;
     end
     % Use mocap for contact events
     
@@ -111,21 +100,28 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     % state in this calculation is suitable.
     % use T2 to determine contact
     % Could possibly include toes as extra contact point in future
+    angles = gon_data({i,angle_vars});
+    fk_params{1,2} = angles(1);
+    fk_params{2,2} = angles(2);
+    fk_params{3,2} = angles(3);
+    J = JacobianFK(fk_params);
     if T3(3,4) > 0.008  % heuristic, but a good one, (8cm?)
         % See if we are going into contact
         if contact
             contact = 0;
+            [X,P] = remove_contact(X,P);
         end
         % only have this apply to calcaneus fk
-        Nt = 100000*Nd;  % don't trust contact point if not in contact
+        Nt = 1000*Nd;  % don't trust contact point if not in contact
         % Going back to "skipping" strategy?
+        log{i-initial+1,1} = t;
+        log{i-initial+1,2} = X;
+        log{i-initial+1,3} = P;
     else
         if ~contact
             contact = 1;
             % What if we do the above at every timestep when not in contact?
-            temp = X(1:4,1:4)*T1to3(1:4,4);
-            X(1:3,8) = temp(1:3);
-            % X(1:3,8) = T3(1:3,4);
+            [X,P] = add_contact(X,P,T1to3(1:3,4),J,fk_cov);
         end
         % Need to be careful with this, if setting at each timestep then it
         % may implicitly violate zero-velocity constraint, or we may be
@@ -138,23 +134,23 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
         Nt = Nd;
         % Do I want to zero-out the z? would that help?
     end
-    % Update FK angles for Jacobian
-    angles = gon_data{i,angle_vars};
-    angles = angles*pi/180;  % goniometer measures in degrees, we need radians
-    fk_params{1,2} = angles(1);
-    fk_params{2,2} = angles(2);
-    fk_params{3,2} = angles(3);
-    J = JacobianFK(fk_params);
-    v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
+    % X(1:3,8) = T3(1:3,4);  % Use transformation from current estimated origin instead?
+    v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4)); % Just want to rotate, transpose instead of \?
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
+    % Try without rotation? Similar result
+    % v_fc = T2(1:3,4) - T1(1:3,4);
     measp2 = [v_ft; 1; 0; -1; 0; 0];
     measd = [v_fc; 1; 0; 0; 0; -1];
     meas = [measp2; measd];
     H = [Hp2; Hd];
     b = [bp2; bd];
-    N = blkdiag(Np2,Nt);  % only apply cov increase to contact point
-    log{i-initial+1,4} = blkdiag(X,X)*meas-b;
-    [X,P] = update(meas,X,P,H,b,N,J);
+    Nt = blkdiag(Np2,Nt);  % only apply cov increase to contact point
+    if contact
+        [X,P] = update(meas,X,P,H,b,Nt);
+    else
+        [X,P] = update_nocontact(measp2(1:7),X,P, ...
+            Hp2(1:7,1:15),bp2(1:7),Np2(1:7,1:7),J);
+    end
     log{i-initial+1,1} = t;
     log{i-initial+1,2} = X;
     log{i-initial+1,3} = P;

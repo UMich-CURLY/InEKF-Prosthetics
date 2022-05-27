@@ -1,4 +1,4 @@
-function [state,cov] = predict(inputs,dt,fk2,X,P,A,Q)
+function [state,cov] = predict_nocontact(inputs,dt,fk2,X,P,A,Q)
     g = [0; 0; -9.81];
     omega = skew3x3(inputs(1:3));
     a1 = inputs(4:6);
@@ -14,7 +14,6 @@ function [state,cov] = predict(inputs,dt,fk2,X,P,A,Q)
     v1 = X(1:3,5);
     p2 = X(1:3,6);
     v2 = X(1:3,7);
-    d = X(1:3,8);
     
     RdX = expm(omega*dt);
     v1dX = (R*a1 + g)*dt;
@@ -32,8 +31,8 @@ function [state,cov] = predict(inputs,dt,fk2,X,P,A,Q)
     state(1:3,5) = v1 + v1dX;
     state(1:3,6) = p2 + p2dX;
     state(1:3,7) = v2 + v2dX;
-    state(1:3,8) = d;
 
     phi = expm(A*dt);
-    cov = phi*P*phi' + Adj(X)*(phi*Q*phi'*dt)*Adj(X)';
+    AdjX = Adj_nocontact(X);
+    cov = phi*P*phi' + AdjX*(phi*Q*phi'*dt)*AdjX';
 end

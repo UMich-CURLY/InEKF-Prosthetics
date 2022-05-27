@@ -26,7 +26,10 @@ for i = 1:length(tforms)
     line('XData',[o(1),z(1)], ...
         'YData',[o(2),z(2)], ...
         'ZData',[o(3),z(3)], ...
-        'Color','y','LineStyle',linestyle)
+        'Color','y')
 end
 plot3(xyz(1,:),xyz(2,:),xyz(3,:),'Color',color)
+xlabel('x')
+ylabel('y')
+zlabel('z')
 end
