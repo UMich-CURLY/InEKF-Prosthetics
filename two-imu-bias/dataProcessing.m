@@ -50,7 +50,7 @@ imu1_p = X(1:3,1:3)'*(tibia_init(1:3,4)-X(1:3,4))/2;  % Transpose instead of \?
 imu2_p = tibia_init(1:3,1:3)'*(ankle_init(1:3,4)-tibia_init(1:3,4));
 X(1:3,6) = tibia_init(1:3,4);
 X(1:3,8) = calcn_init(1:3,4);
-P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.00001*eye(3),0.01*eye(3),0.01*eye(3),0.0001*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
+P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.0001*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
 % Changing last one causes large shifts in accuracy - try for yourself
 % -- e.g. smaller -> less drift over time. Further decreases past 0.0001
 % don't affect x/y as much as z
@@ -73,16 +73,18 @@ P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.00001*eye(3),0.01*eye(3),0.01*eye(3),0
 bias0 = zeros(9,1);
 P = P0;
 bias = bias0;
-Q = blkdiag(0.0001*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
+Q = blkdiag(0.001*eye(3),0.0001*eye(3),10*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
 % Covariance adjustment effects:
 % R: 
-Q_block = blkdiag(Q,0.001*eye(9));  % Q plus IMU biases
+Q_block = blkdiag(Q,0.1*eye(9));  % Q plus IMU biases
 
-N = 0.001*eye(8);  % Do the last five matter? Only first three go into measurements currently
-N_reduced = N(1:3,1:3);
-log = {fkTable{1,'Header'},X,P,bias};
+Np2 = 0.1*eye(8);  % Do the last five matter? Only first three go into measurements currently
+% bigger -> trajectory drifts downward faster, more spiky
+% smaller -> trajectory also goes down, but is smoother
+Nd = 0.001*eye(8);
+log = {fkTable{1,'Header'},X,P,zeros(16,1),bias};
 contact = 0;
-for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
+for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we have IMU
     % time difference from last step
     t = fkTable{i,'Header'};
     dt = fkTable{i,'Header'}-fkTable{i-1,'Header'};
@@ -115,7 +117,7 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
     A_block = Ablock(X,A);
     % HACK: re-augmenting the state covariance every time we go through the
     % loop
-    P_block = blkdiag(P,0.001*eye(9));
+    P_block = blkdiag(P,0.1*eye(9));
     [X,P] = predict(inputs, dt, fk2, bias, X, P_block, A_block, Q_block);
     if sum(isnan(P(:))) > 0
         warning('Detected NaN in P')
@@ -135,12 +137,8 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
             contact = 0;
         end
         % only have this apply to calcaneus fk
-        Nt = 1000*N;  % don't trust contact point if not in contact
+        Nt = 100000*Nd;  % don't trust contact point if not in contact
         % Going back to "skipping" strategy?
-        log{i-initial+1,1} = t;
-        log{i-initial+1,2} = X;
-        log{i-initial+1,3} = P;
-        log{i-initial+1,4} = bias;
     else
         if ~contact
             contact = 1;
@@ -157,7 +155,7 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
         % within the correction step
 
         % Only have this apply to calcaneus fk
-        Nt = N;
+        Nt = Nd;
         % Do I want to zero-out the z? would that help?
     end
     % X(1:3,8) = T3(1:3,4);  % Use transformation from current estimated origin instead?
@@ -170,10 +168,12 @@ for i = (initial+1):3068  % 3068 is number of timesteps for which we have IMU
     meas = [measp2; measd];
     H = [Hp2; Hd];
     b = [bp2; bd];
-    Nt = blkdiag(N,Nt);  % only apply cov increase to contact point
-    [X,P,bias] = update(meas,bias,X,P,H,b,Nt);
+    N = blkdiag(Np2,Nt);  % only apply cov increase to contact point
+    log{i-initial+1,4} = blkdiag(X,X)*meas-b;
+    % measure drift of contact point
+    [X,P,bias] = update(meas,bias,X,P,H,b,N);
     log{i-initial+1,1} = t;
     log{i-initial+1,2} = X;
     log{i-initial+1,3} = P;
-    log{i-initial+1,4} = bias;
+    log{i-initial+1,5} = bias;
 end

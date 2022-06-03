@@ -17,7 +17,7 @@ imu2_p = tibia_init(1:3,1:3)'*(ankle_init(1:3,4)-tibia_init(1:3,4));
 fk_params = rough_fk_estimate(femur_init,tibia_init,ankle_init,calcn_init);
 X(1:3,6) = tibia_init(1:3,4);
 X(1:3,8) = calcn_init(1:3,4);
-P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.0001*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
+P0 = blkdiag(0.001*eye(3),0.01*eye(3),0.001*eye(3),0.01*eye(3),0.001*eye(3),0.01*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
 % Changing last one causes large shifts in accuracy - try for yourself
 % -- e.g. smaller -> less drift over time. Further decreases past 0.0001
 % don't affect x/y as much as z
@@ -38,7 +38,7 @@ P0 = blkdiag(0.01*eye(3),0.00001*eye(3),0.01*eye(3),0.00001*eye(3),0.01*eye(3),0
 % Decreasing p1 & v1 just makes it look like p1 was decreased
 % Is the initial orientation frame different than expected?
 P = P0;
-Q = blkdiag(0.001*eye(3),0.0001*eye(3),10*eye(3),0.0001*eye(3),0.1*eye(3),0.0001*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
+Q = blkdiag(0.001*eye(3),0.0001*eye(3),10*eye(3),0.0001*eye(3),0.1*eye(3),0.01*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
 % Covariance adjustment effects:
 % R: bigger -> bigger difference in euler angles vs. gt, more loop-de-loop.
 % Decreasing past 0.001 doesn't give much
@@ -58,9 +58,9 @@ Np2 = 0.1*eye(8);  % Do the last five matter? Only first three go into measureme
 Nd = 0.001*eye(8);
 % bigger -> trajectory goes straight down then stays in place for a time
 % smaller -> 
-log = {fkTable{1,'Header'},X,P,zeros(16,1)};
 contact = 0;
-for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we have IMU
+log = {fkTable{1,'Header'},X,P,zeros(16,1),contact,[NaN;NaN;NaN]};
+for i = (initial+1):height(imu_data)  
     % time difference from last step
     t = fkTable{i,'Header'};
     dt = fkTable{i,'Header'}-fkTable{i-1,'Header'};
@@ -75,23 +75,8 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
             inputs(6);-inputs(4);-inputs(5);...
             inputs(9);-inputs(7);-inputs(8)];
 
-    % Try just to transfer IMU to world frame, not body frame?
-    % -x_imu = z_world, -y_imu = x_world, z_imu = y_world
-    %inputs = [-inputs(2);inputs(3);-inputs(1);...
-    %          -inputs(5);inputs(6);-inputs(4);...
-    %          -inputs(8);inputs(9);-inputs(7)];
-
-    % And yet, the results weren't any better...
-    % compensate linear velocity w/ displacement of IMU
-    % This line is sus, am I doing it right?
-    % inputs(4:6) = inputs(4:6) - skew3x3(inputs(1:3))*imu1_p;  % omega x OA is linear velocity due to acceleration, so this needs to change
-    shank_gyro = table2array(imu_data(imu_row,shank_vars));
-    shank_gyro = [shank_gyro(3);-shank_gyro(1);-shank_gyro(2)];
-    % inputs(7:9) = inputs(7:9) - skew3x3(shank_gyro)*imu2_p; 
-    % Check how to do with tibia accelerometer, may just be the same
-    % Check with and without this
-    % Add calculation of forward kinematics rotation to second joint -
-    % ideally using goniometer and not ground truth, if possible
+    % shank_gyro = table2array(imu_data(imu_row,shank_vars));
+    % shank_gyro = [shank_gyro(3);-shank_gyro(1);-shank_gyro(2)];
     T1 = cell2mat(fkTable{i,'femur_r'});
     T2 = cell2mat(fkTable{i,'tibia_r'});
     T3 = cell2mat(fkTable{i,'calcn_r'});
@@ -117,15 +102,17 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
             contact = 0;
         end
         % only have this apply to calcaneus fk
-        Nt = 100000*Nd;  % don't trust contact point if not in contact
+        Nt = 10000*Nd;  % don't trust contact point if not in contact
         % Going back to "skipping" strategy?
     else
         if ~contact
             contact = 1;
             % What if we do the above at every timestep when not in contact?
+            % Work through an illustrative example
             temp = X(1:4,1:4)*T1to3(1:4,4);
             X(1:3,8) = temp(1:3);
-            % X(1:3,8) = T3(1:3,4);
+            % Updating more gives worse results, whether only updating
+            % while in contact or updating every timestep.
         end
         % Need to be careful with this, if setting at each timestep then it
         % may implicitly violate zero-velocity constraint, or we may be
@@ -138,14 +125,23 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
         Nt = Nd;
         % Do I want to zero-out the z? would that help?
     end
+    % Somehow even worse when we update every timestep!
+    % lowering mistrust factor doesn't help this either
+    % temp = X(1:4,1:4)*T1to3(1:4,4);
+    % X(1:3,8) = temp(1:3);
     % Update FK angles for Jacobian
-    angles = gon_data{i,angle_vars};
+    gon_data_row = table2array(gon_data(:,'Header'))==t;
+    angles = gon_data{gon_data_row,angle_vars};
     angles = angles*pi/180;  % goniometer measures in degrees, we need radians
+    % Shouldn't the first one be 0? Since we are performing FK in the thigh
+    % frame
     fk_params{1,2} = angles(1);
     fk_params{2,2} = angles(2);
     fk_params{3,2} = angles(3);
     J = JacobianFK(fk_params);
     v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
+    % Maybe has something to do with the fact we construct X*v_fc and d
+    % nearly the exact same
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
     measp2 = [v_ft; 1; 0; -1; 0; 0];
     measd = [v_fc; 1; 0; 0; 0; -1];
@@ -158,4 +154,6 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     log{i-initial+1,1} = t;
     log{i-initial+1,2} = X;
     log{i-initial+1,3} = P;
+    log{i-initial+1,5} = contact;
+    log{i-initial+1,6} = T1to3(1:3,4);
 end

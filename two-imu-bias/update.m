@@ -1,4 +1,5 @@
 function [state,cov,bias] = update(meas,zeta,X,P,H,b,N) % dt necessary?
+    % rotation + jacobians? Would be much easier with reduced form N/H/etc.
     S = H*P*H' + N;
     L = P*H'/S;
 

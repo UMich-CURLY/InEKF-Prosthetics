@@ -1,4 +1,5 @@
 len = length(log);
+% len = 500;  % doesn't even really go anywhere by this point
 
 comp_log = zeros(len,6);
 gt_traj = zeros(len,3);
