@@ -21,7 +21,8 @@ for i = 1:len
     if log{i,5}
         p_filt = filt(1:3,4);
     else
-        p_filt = [NaN; NaN; NaN];  % don't plot trajectory where we're not in contact, come back later and change the color
+        % p_filt = [NaN; NaN; NaN];  % don't plot trajectory where we're not in contact, come back later and change the color
+        p_filt = filt(1:3,4);
     end
     p_diff = p_filt-p_gt;
     % add: position T1to3 over time, see if it looks like a cyclic motion
@@ -42,7 +43,13 @@ for i = 1:len
     % accel_log(i,:) = accelerometer;
 
     error = log{i,4};
-    error_log(i,:) = error([1:3,9:11]);  % first 3 elements of bd after first 8 (bp2)
+    % Need to rethink this a bit, perhaps only log to-heel error in the
+    % first place so that we don't have to deal with in-contact vs. not
+    if log{i,5}
+        error_log(i,:) = error([1:3,9:11]);  % first 3 elements of bd after first 8 (bp2)
+    else
+        error_log(i,:) = [NaN, NaN, NaN, NaN, NaN, NaN];
+    end
 
     comp_log(i,:) = [rot_diff,p_diff'];
 

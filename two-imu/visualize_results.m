@@ -20,7 +20,8 @@ for i = 1:len
     if log{i,5}
         p_filt = filt(1:3,4);
     else
-        p_filt = [NaN; NaN; NaN];  % don't plot trajectory where we're not in contact, come back later and change the color
+        % p_filt = [NaN; NaN; NaN];  % don't plot trajectory where we're not in contact, come back later and change the color
+        p_filt = filt(1:3,4);
     end
     p_diff = p_filt-p_gt;
     % add: position T1to3 over time, see if it looks like a cyclic motion

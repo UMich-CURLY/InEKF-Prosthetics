@@ -9,10 +9,7 @@ function [state,cov] = update(meas,X,P,H,b,N,Jac)
     % disp(size(J))
     % disp(size(X))
     % disp(size(N))
-    N = N([1:3,9:11],[1:3,9:11]);
     R = X(1:3,1:3);
-    % We know model so this is fine for now
-    H = H([1:3,9:11],:);
     Rk = blkdiag(R,R);
     Jk = blkdiag(Jac,Jac);
     Nk = Rk*Jk*N*Jk'*Rk';

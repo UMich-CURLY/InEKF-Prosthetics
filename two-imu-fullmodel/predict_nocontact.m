@@ -32,7 +32,8 @@ function [state,cov] = predict_nocontact(inputs,dt,fk2,X,P,A,Q)
     state(1:3,6) = p2 + p2dX;
     state(1:3,7) = v2 + v2dX;
 
-    phi = expm(A*dt);
+    A_reduced = A(1:15,1:15);
+    phi = expm(A_reduced*dt);
     AdjX = Adj_nocontact(X);
     cov = phi*P*phi' + AdjX*(phi*Q*phi'*dt)*AdjX';
 end

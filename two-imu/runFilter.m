@@ -38,7 +38,7 @@ P0 = blkdiag(0.001*eye(3),0.01*eye(3),0.001*eye(3),0.01*eye(3),0.001*eye(3),0.01
 % Decreasing p1 & v1 just makes it look like p1 was decreased
 % Is the initial orientation frame different than expected?
 P = P0;
-Q = blkdiag(0.001*eye(3),0.0001*eye(3),10*eye(3),0.0001*eye(3),0.1*eye(3),0.01*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
+Q = blkdiag(0.001*eye(3),0.001*eye(3),10*eye(3),0.01*eye(3),0.01*eye(3),0.01*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
 % Covariance adjustment effects:
 % R: bigger -> bigger difference in euler angles vs. gt, more loop-de-loop.
 % Decreasing past 0.001 doesn't give much
@@ -110,10 +110,13 @@ for i = (initial+1):height(imu_data)
             % What if we do the above at every timestep when not in contact?
             % Work through an illustrative example
             temp = X(1:4,1:4)*T1to3(1:4,4);
+            temp = T3(1:4,4);  % use mocap instead - just to check
             X(1:3,8) = temp(1:3);
             % Updating more gives worse results, whether only updating
             % while in contact or updating every timestep.
         end
+        % Set contact point to 0 z every time step while in contact
+        % X(3,8) = 0;
         % Need to be careful with this, if setting at each timestep then it
         % may implicitly violate zero-velocity constraint, or we may be
         % getting unrealistically accurate measurements.

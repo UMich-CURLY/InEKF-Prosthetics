@@ -16,47 +16,8 @@ imu2_p = tibia_init(1:3,1:3)'*(ankle_init(1:3,4)-tibia_init(1:3,4));
 
 fk_params = rough_fk_estimate(femur_init,tibia_init,ankle_init,calcn_init);
 X(1:3,6) = tibia_init(1:3,4);
-P0 = blkdiag(0.001*eye(3),0.01*eye(3),0.001*eye(3),0.01*eye(3),0.001*eye(3),0.01*eye(3));  % 3 for rotation, 3x3 more for p1,v1,d
-% Changing last one causes large shifts in accuracy - try for yourself
-% -- e.g. smaller -> less drift over time. Further decreases past 0.0001
-% don't affect x/y as much as z
-% -- but why when smaller do the trajectories still get closer at the end?
-% Decreasing p1 cov makes initial downward spike bigger -- why? but no
-% major change under 0.0001. Trusting less (0.1) causes slightly more x
-% drift, slightly? 0.01 seems to be a sweet spot
-% P2 cov shows same trend as p1, but to a similar-if-slightly-lesser degree
-% Velocity covariances: 
-% v1 higher -> a somewhat flattening effect in the z direction? Not much
-% difference when very small
-% v2 higher -> same as v1
-% Rotation: 
-% Higher: much larger initial drift, but actually performs better in x and kind
-% of in y as well over time
-% Lower: Just more of the same
-% Pairwise:
-% Decreasing p1 & v1 just makes it look like p1 was decreased
-% Is the initial orientation frame different than expected?
-P = P0;
-Q = blkdiag(0.001*eye(3),0.0001*eye(3),10*eye(3),0.0001*eye(3),0.1*eye(3),0.01*eye(3));  % 3 for rotation, next 3 for position, next 3 for velocity
-% Covariance adjustment effects:
-% R: bigger -> bigger difference in euler angles vs. gt, more loop-de-loop.
-% Decreasing past 0.001 doesn't give much
-% p1: bigger -> subtle differences, not sure what they are
-% v1: smaller -> major difference in how far off trajectory was. Bigger ->
-% may produce better results? On the order of 1 or higher?
-% p2: bigger -> flatter trajectory? Maybe. Slightly worse Euler angle
-% deltas maybe
-% v2: bigger -> flatter trajectory that doesn't go as far, decreasing
-% doesn't gain much past 0.01
-% d: bigger -> more trajectory drift, but no visual gains past 0.001 to
-% 0.0001
 
-Np2 = 0.1*eye(8);  % Do the last five matter? Only first three go into measurements currently
-% bigger -> trajectory drifts downward faster, more spiky
-% smaller -> trajectory also goes down, but is smoother
-Nd = 0.001*eye(8);
-% bigger -> trajectory goes straight down then stays in place for a time
-% smaller -> 
+P = P0;
 contact = 0;
 log = {fkTable{1,'Header'},X,P,zeros(16,1),contact,[NaN;NaN;NaN]};
 contact = 0;
@@ -113,7 +74,7 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     % state in this calculation is suitable.
     % use T2 to determine contact
     % Could possibly include toes as extra contact point in future
-    angles = gon_data({i,angle_vars});
+    angles = gon_data{i,angle_vars};
     fk_params{1,2} = angles(1);
     fk_params{2,2} = angles(2);
     fk_params{3,2} = angles(3);
@@ -124,33 +85,37 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
             contact = 0;
             [X,P] = remove_contact(X,P);
         end
-        % only have this apply to calcaneus fk
-        Nt = 1000*Nd;  % don't trust contact point if not in contact
-        % Going back to "skipping" strategy?
-        log{i-initial+1,1} = t;
-        log{i-initial+1,2} = X;
-        log{i-initial+1,3} = P;
     else
         if ~contact
             contact = 1;
             % What if we do the above at every timestep when not in contact?
             [X,P] = add_contact(X,P,T1to3(1:3,4),J,fk_cov);
+            X(1:3,8) = T3(1:3,4);  % setting to mocap, for checking
+            % X(3,8) = 0  % set to 0 z
         end
-
-        % Only have this apply to calcaneus fk
-        Nt = Nd;
-        % Do I want to zero-out the z? would that help?
     end
     v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
-    measp2 = [v_ft; 1; 0; -1; 0; 0];
-    measd = [v_fc; 1; 0; 0; 0; -1];
-    meas = [measp2; measd];
-    H = [Hp2; Hd];
-    b = [bp2; bd];
-    N = blkdiag(Np2,Nt);  % only apply cov increase to contact point
-    log{i-initial+1,4} = blkdiag(X,X)*meas-b;
-    [X,P] = update(meas,X,P,H,b,N,J);
+    if contact
+        b = [bp2; bd];
+        measp2 = [v_ft; 1; 0; -1; 0; 0];
+        measd = [v_fc; 1; 0; 0; 0; -1];
+        meas = [measp2; measd];
+        H = [Hp2; Hd];
+        % We know model so this is fine for now
+        H = H([1:3,9:11],:);
+        N = blkdiag(fk_cov,fk_cov);  % only apply cov increase to contact point
+        log{i-initial+1,4} = blkdiag(X,X)*meas-b;
+        [X,P] = update(meas,X,P,H,b,N,J);
+    else
+        J = J(:,1:2);
+        meas = [v_ft; 1; 0; -1; 0];
+        H = Hp2(1:3,1:15);
+        b = bp2(1:7);
+        N = fk_cov(1:2,1:2);
+        log{i-initial+1,4} = X*meas-b;
+        [X,P] = update_nocontact(meas,X,P,H,b,N,J);
+    end
     log{i-initial+1,1} = t;
     log{i-initial+1,2} = X;
     log{i-initial+1,3} = P;
