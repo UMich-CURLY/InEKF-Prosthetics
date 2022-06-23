@@ -1,4 +1,4 @@
-function [state,cov] = update(meas,X,P,H,b,N,Jac)
+function [state,cov,bias] = update(meas,X,zeta,P,H,b,N,Jac)
     % Requires reduced form of H to make work - we should do that in this
     % function to maintain clarity. Or...
     % ^ hard-coded sizes is not the best from software engineering, but
@@ -16,10 +16,15 @@ function [state,cov] = update(meas,X,P,H,b,N,Jac)
     S = H*P*H' + Nk;
     L = P*H'/S;
 
+    L_bias = L(19:27,1:end);
+    L_state = L(1:18,1:end);
+
     % Assumes measurement is formatted correctly, also assumes stacked
     % measurement beforehand
     error = blkdiag(X,X)*meas - b;
-    innovation = lie_groupify(L*error([1:3,9:11]));
+    error = error([1:3,9:11]);
+    bias = zeta + L_bias*error;
+    innovation = lie_groupify(L_state*error);
     state = expm(innovation)*X;
     LH = L*H;
     cov = (eye(size(LH))-LH)*P*(eye(size(LH))-LH)' + L*Nk*L';

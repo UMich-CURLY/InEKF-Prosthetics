@@ -4,11 +4,13 @@ function [state,cov] = add_contact(X,P,fkd,J,fk_cov)
     state(1:3,end) = d;
 
     % augmentation to capture p1 contribution
-    point_augmentation = [zeros(3,3), eye(3), zeros(3,9)];
-    F = [eye(15); 
-        point_augmentation];
+    F = zeros(27,24);
+    F(1:15,1:15) = eye(15);  % keeping what we have going
+    F(16:18,4:6) = eye(3);  % p1 contributes to d error
+    F(19:27,16:24) = eye(9);  % bias portion
     G = [zeros(15,3);
-        X(1:3,1:3)*J];
+        X(1:3,1:3)*J;
+        zeros(9,3)];  % extra row included for biases
 
     cov = F*P*F' + G*fk_cov*G';
 end

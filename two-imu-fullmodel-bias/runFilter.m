@@ -1,6 +1,9 @@
 run load_dataset.m;
 run matrices.m;  % initialize matrices
 
+% TODO: adjust P and Q to include bias covariance in prediction & update - may
+% need a couple passes
+
 initial=1;
 % Initialize first rotation based on IMU instead?
 femur_init = cell2mat(fkTable{initial,'femur_r'});
@@ -17,9 +20,11 @@ imu2_p = tibia_init(1:3,1:3)'*(ankle_init(1:3,4)-tibia_init(1:3,4));
 fk_params = rough_fk_estimate(femur_init,tibia_init,ankle_init,calcn_init);
 X(1:3,6) = tibia_init(1:3,4);
 
-P = P0;
+bias = zeros(9,1);
+P = blkdiag(P0,bias_cov);
+Q = blkdiag(Q0,bias_cov);
 contact = 0;
-log = {fkTable{1,'Header'},X,P,zeros(16,1),contact,[NaN;NaN;NaN]};
+log = {fkTable{1,'Header'},X,P,zeros(16,1),contact,[NaN;NaN;NaN],bias};
 contact = 0;
 for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we have IMU
     % time difference from last step
@@ -52,19 +57,10 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     T3 = cell2mat(fkTable{i,'calcn_r'});
     fk2 = T1(1:3,1:3)'*T2(1:3,1:3);  % Right order?
     T1to3 = T1\T3;
-    % [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
-    if contact
-        [X,P] = predict(inputs, dt, fk2, X, P, A, Q);
-    else
-        [X,P] = predict_nocontact(inputs, ...
-            dt, fk2, X, P, A(1:15,1:15), Q(1:15,1:15));
-    end
-
-    if sum(isnan(P(:))) > 0
-        warning('Detected NaN in P')
-        disp(i)
-        return;
-    end
+    
+    % TODO: go back to fullmodel w/o bias and move this section to the
+    % front - how much does order matter here? This is a valid question to
+    % ask
     % Use mocap for contact events
     
 
@@ -94,6 +90,23 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
             % X(3,8) = 0  % set to 0 z
         end
     end
+    
+    % [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
+    if contact
+        [X,P] = predict(inputs, bias, dt, fk2, X, P, A, Q);
+    else
+        [X,P] = predict_nocontact(inputs, bias, ...
+            dt, fk2, X, P, ...
+            A([1:15,19:27],[1:15,19:27]), ...
+            Q([1:15,19:27],[1:15,19:27]));
+    end
+
+    if sum(isnan(P(:))) > 0
+        warning('Detected NaN in P')
+        disp(i)
+        return;
+    end
+
     v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
     if contact
@@ -106,19 +119,21 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
         H = H([1:3,9:11],:);
         N = blkdiag(fk_cov,fk_cov);  % only apply cov increase to contact point
         log{i-initial+1,4} = blkdiag(X,X)*meas-b;
-        [X,P] = update(meas,X,P,H,b,N,J);
+        [X,P] = update(meas,X,bias,P,H,b,N,J);
     else
         J = J(:,1:2);
         meas = [v_ft; 1; 0; -1; 0];
-        H = Hp2(1:3,1:15);
+        H = Hp2(1:3,[1:15,19:27]);
         b = bp2(1:7);
         N = fk_cov(1:2,1:2);
         log{i-initial+1,4} = X*meas-b;
-        [X,P] = update_nocontact(meas,X,P,H,b,N,J);
+        [X,P,bias] = update_nocontact(meas,X,bias,P,H,b,N,J);
     end
+    % P will come out bigger, need to reshape it down?
     log{i-initial+1,1} = t;
     log{i-initial+1,2} = X;
     log{i-initial+1,3} = P;
     log{i-initial+1,5} = contact;
     log{i-initial+1,6} = T1to3(1:3,4);
+    log{i-initial+1,7} = bias;
 end

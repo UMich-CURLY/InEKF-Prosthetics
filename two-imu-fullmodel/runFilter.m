@@ -52,19 +52,7 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     T3 = cell2mat(fkTable{i,'calcn_r'});
     fk2 = T1(1:3,1:3)'*T2(1:3,1:3);  % Right order?
     T1to3 = T1\T3;
-    % [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
-    if contact
-        [X,P] = predict(inputs, dt, fk2, X, P, A, Q);
-    else
-        [X,P] = predict_nocontact(inputs, ...
-            dt, fk2, X, P, A(1:15,1:15), Q(1:15,1:15));
-    end
 
-    if sum(isnan(P(:))) > 0
-        warning('Detected NaN in P')
-        disp(i)
-        return;
-    end
     % Use mocap for contact events
     
 
@@ -94,6 +82,21 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
             % X(3,8) = 0  % set to 0 z
         end
     end
+
+    % [X,P] = predict(inputs, dt, fk2, imu1_p, imu2_p, shank_gyro, X, P, A, Q);
+    if contact
+        [X,P] = predict(inputs, dt, fk2, X, P, A, Q);
+    else
+        [X,P] = predict_nocontact(inputs, ...
+            dt, fk2, X, P, A(1:15,1:15), Q(1:15,1:15));
+    end
+
+    if sum(isnan(P(:))) > 0
+        warning('Detected NaN in P')
+        disp(i)
+        return;
+    end
+    
     v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
     if contact
