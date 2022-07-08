@@ -10,9 +10,10 @@ function [state,cov,bias] = update(meas,X,zeta,P,H,b,N,Jac)
     % disp(size(X))
     % disp(size(N))
     R = X(1:3,1:3);
-    Rk = blkdiag(R,R);
-    Jk = blkdiag(Jac,Jac);
+    Rk = blkdiag(R,R,R);  % does it work this way?  
+    Jk = blkdiag(Jac,Jac,Jac);
     Nk = Rk*Jk*N*Jk'*Rk';
+    % Nk = Nk([1:6,9],[1:6,9]);  % removing all but the z variable
     S = H*P*H' + Nk;
     L = P*H'/S;
 
@@ -21,8 +22,8 @@ function [state,cov,bias] = update(meas,X,zeta,P,H,b,N,Jac)
 
     % Assumes measurement is formatted correctly, also assumes stacked
     % measurement beforehand
-    error = blkdiag(X,X)*meas - b;
-    error = error([1:3,9:11]);
+    error = blkdiag(X,X,X)*meas - b;
+    error = error([1:3,9:11,17:19]);
     bias = zeta + L_bias*error;
     innovation = lie_groupify(L_state*error);
     state = expm(innovation)*X;

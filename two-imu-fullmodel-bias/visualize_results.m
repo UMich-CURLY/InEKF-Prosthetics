@@ -69,8 +69,10 @@ thigh2foot = cell2mat(thigh2foot);
 figure;
 
 subplot(2,3,1);
-plot(1:len,comp_log(:,1:3))
-legend('z','y','x')
+% plot(1:len,comp_log(:,1:3))
+% legend('z','y','x')
+plot(1:len,comp_log(:,2))
+legend('y')
 title('Difference in Euler angles between ground truth & predicted')
 
 subplot(2,3,2);

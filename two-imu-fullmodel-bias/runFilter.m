@@ -1,8 +1,26 @@
 run load_dataset.m;
 run matrices.m;  % initialize matrices
 
+% Next step - low-pass filter on IMU data + distance corrections for IMUs
+% being placed mid-link
+% run frequency analysis on IMU data to see if it's already been filtered
+% (paper says 100Hz)
+% Extension - move to using factor graphs? Like
+% https://arxiv.org/pdf/1803.07531.pdf?ref=https://githubhelp.com ?
+
 % TODO: adjust P and Q to include bias covariance in prediction & update - may
 % need a couple passes
+
+% TODO: implement z = 0 constraint via "measurement". Do it as
+% 1. a right-invariant measurement
+% 2. a left-invariant measurement, transfering the error to the left and
+% back once left-invariant measurement step is done separately.
+% Also: work on better visualization for attitude tracking, perhaps just
+% have the one plot with angles (+ angular and linear velocities?) tracking
+% Results:
+% 1. Unclear if there is any improvement. If anything, there is a worsening
+% of trajectory tracking.
+% 2. 
 
 initial=1;
 % Initialize first rotation based on IMU instead?
@@ -86,7 +104,7 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
             contact = 1;
             % What if we do the above at every timestep when not in contact?
             [X,P] = add_contact(X,P,T1to3(1:3,4),J,fk_cov);
-            X(1:3,8) = T3(1:3,4);  % setting to mocap, for checking
+            % X(1:3,8) = T3(1:3,4);  % setting to mocap, for checking
             % X(3,8) = 0  % set to 0 z
         end
     end
@@ -110,15 +128,17 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
     if contact
-        b = [bp2; bd];
+        v_constraint = -X(1:3,1:3)*[X(1:2,8); 0];
+        b = [bp2; bd; bz_r];
         measp2 = [v_ft; 1; 0; -1; 0; 0];
         measd = [v_fc; 1; 0; 0; 0; -1];
-        meas = [measp2; measd];
-        H = [Hp2; Hd];
+        measz = [v_constraint(1:3); 0; 0; 0; 0; -1];
+        meas = [measp2; measd; measz];
+        H = [Hp2; Hd; Hz_r];
         % We know model so this is fine for now
-        H = H([1:3,9:11],:);
-        N = blkdiag(fk_cov,fk_cov);  % only apply cov increase to contact point
-        log{i-initial+1,4} = blkdiag(X,X)*meas-b;
+        H = H([1:3,9:11,17:19],:);  % just want the z from the last part
+        N = blkdiag(fk_cov,fk_cov,fk_cov);  % only apply cov increase to contact point
+        log{i-initial+1,4} = blkdiag(X,X,X)*meas-b;
         [X,P] = update(meas,X,bias,P,H,b,N,J);
     else
         J = J(:,1:2);
