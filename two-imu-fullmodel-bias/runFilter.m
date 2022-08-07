@@ -6,7 +6,7 @@ run matrices.m;  % initialize matrices
 % run frequency analysis on IMU data to see if it's already been filtered
 % (paper says 100Hz)
 % Extension - move to using factor graphs? Like
-% https://arxiv.org/pdf/1803.07531.pdf?ref=https://githubhelp.com ?
+% https://arxiv.org/pdf/1803.07531.pdf ?
 
 % TODO: adjust P and Q to include bias covariance in prediction & update - may
 % need a couple passes
@@ -42,7 +42,7 @@ bias = zeros(9,1);
 P = blkdiag(P0,bias_cov);
 Q = blkdiag(Q0,bias_cov);
 contact = 0;
-log = {fkTable{1,'Header'},X,P,zeros(16,1),contact,[NaN;NaN;NaN],bias};
+log = {fkTable{1,'Header'},X,P,zeros(16,1),contact,[NaN;NaN;NaN],bias,0};
 contact = 0;
 for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we have IMU
     % time difference from last step
@@ -129,10 +129,10 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
     if contact
         v_constraint = -X(1:3,1:3)*[X(1:2,8); 0];
-        b = [bp2; bd; bz_r];
+        b = [bp2; bd; bz];
         measp2 = [v_ft; 1; 0; -1; 0; 0];
         measd = [v_fc; 1; 0; 0; 0; -1];
-        measz = [v_constraint(1:3); 0; 0; 0; 0; -1];
+        measz = [v_constraint(1:3); 0; 0; 0; 0; 1];
         meas = [measp2; measd; measz];
         H = [Hp2; Hd; Hz_r];
         % We know model so this is fine for now
@@ -156,4 +156,8 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     log{i-initial+1,5} = contact;
     log{i-initial+1,6} = T1to3(1:3,4);
     log{i-initial+1,7} = bias;
+
+    % calculate y angle error and store in 8th column
+    euler_error = rotm2eul(X(1:3,1:3)) - rotm2eul(T1(1:3,1:3));
+    log{i-initial+1,8} = euler_error(2);
 end

@@ -17,8 +17,7 @@ A(13:15,1:3) = skew3x3(g);
 
 bp2 = [0; 0; 0; 1; 0; -1; 0; 0];
 bd = [0; 0; 0; 1; 0; 0; 0; -1];
-bz_r = [0; 0; 0; 0; 0; 0; 0; -1];
-bz_l = [0; 0; 0; 0; 0; 0; 0; 1];
+bz = [0; 0; 0; 0; 0; 0; 0; 1];
 
 Hp2 = zeros(8,27);
 Hp2(1:3,4:6) = -eye(3);
@@ -29,11 +28,11 @@ Hd(1:3,4:6) = -eye(3);
 Hd(1:3,16:18) = eye(3);
 
 Hz_r = zeros(8,27);
-Hz_r(1:3,16:18) = eye(3);
+Hz_r(1:3,16:18) = -eye(3);
 
 % double-check the left-invariant forms
 Hz_l = zeros(8,27);
-Hz_l(1:3,16:18) = -eye(3);
+Hz_l(1:3,16:18) = eye(3);
 
 rotation_variance = 0.01;
 p1_variance = 0.01;

@@ -1,12 +1,25 @@
-filepre = "../../AB06/AB06/";
-motfile = "10_09_18/levelground/ik/levelground_ccw_slow_01_01.mat";
-imufile = "10_09_18/levelground/imu/levelground_ccw_slow_01_01.mat";
-fpfile = "10_09_18/levelground/fp/levelground_ccw_slow_01_01.mat";
-gonfile = "10_09_18/levelground/gon/levelground_ccw_slow_01_01.mat";
-imu_data = load(filepre+imufile).data;
-fp_data = load(filepre+fpfile).data;
-gon_data = load(filepre+gonfile).data;
-osimfile = "osimxml/AB06.osim";
+check_params = exist('dataset_params','var');
+if ~check_params
+    filepre = "../../AB06/AB06/";
+    motfile = "10_09_18/levelground/ik/levelground_ccw_slow_01_01.mat";
+    imufile = "10_09_18/levelground/imu/levelground_ccw_slow_01_01.mat";
+    fpfile = "10_09_18/levelground/fp/levelground_ccw_slow_01_01.mat";
+    gonfile = "10_09_18/levelground/gon/levelground_ccw_slow_01_01.mat";
+    imu_data = load(filepre+imufile).data;
+    fp_data = load(filepre+fpfile).data;
+    gon_data = load(filepre+gonfile).data;
+    osimfile = "osimxml/AB06.osim";
+else
+    filepre = convertCharsToStrings(dataset_params("filepre"));
+    motfile = convertCharsToStrings(dataset_params("motfile"));
+    imufile = convertCharsToStrings(dataset_params("imufile"));
+    fpfile = convertCharsToStrings(dataset_params("fpfile"));
+    gonfile = convertCharsToStrings(dataset_params("gonfile"));
+    imu_data = load(filepre+imufile).data;
+    fp_data = load(filepre+fpfile).data;
+    gon_data = load(filepre+gonfile).data;
+    osimfile = convertCharsToStrings(dataset_params("osimfile"));
+end
 % options used to generate the fkTable
 check = exist('fkTable','var');
 if ~check
