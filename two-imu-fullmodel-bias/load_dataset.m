@@ -15,7 +15,7 @@ else
     imufile = convertCharsToStrings(dataset_params("imufile"));
     fpfile = convertCharsToStrings(dataset_params("fpfile"));
     gonfile = convertCharsToStrings(dataset_params("gonfile"));
-    imu_data = load(filepre+imufile).data;
+    imu_data = load(filepre+imufile).data; % for some reason, numbering scheme was flipped, add exception? No, check if file exists when generating the file names
     fp_data = load(filepre+fpfile).data;
     gon_data = load(filepre+gonfile).data;
     osimfile = convertCharsToStrings(dataset_params("osimfile"));

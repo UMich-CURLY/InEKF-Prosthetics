@@ -128,11 +128,11 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
     if contact
-        v_constraint = -X(1:3,1:3)*[X(1:2,8); 0];
+        v_constraint = X(1:3,1:3)\[X(1:2,8); 0];
         b = [bp2; bd; bz];
         measp2 = [v_ft; 1; 0; -1; 0; 0];
         measd = [v_fc; 1; 0; 0; 0; -1];
-        measz = [v_constraint(1:3); 0; 0; 0; 0; 1];
+        measz = [v_constraint(1:3); 0; 0; 0; 0; -1];
         meas = [measp2; measd; measz];
         H = [Hp2; Hd; Hz_r];
         % We know model so this is fine for now
