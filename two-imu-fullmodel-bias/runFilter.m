@@ -93,7 +93,7 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     fk_params{2,2} = angles(2);
     fk_params{3,2} = angles(3);
     J = JacobianFK(fk_params);
-    if T3(3,4) > 0.008  % heuristic, but a good one, (8cm?)
+    if T3(3,4) > 0.004  % heuristic, but a good one, (8cm?)
         % See if we are going into contact
         if contact
             contact = 0;
