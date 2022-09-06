@@ -93,7 +93,7 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     fk_params{2,2} = angles(2)*-pi/180;
     fk_params{3,2} = angles(3)*-pi/180;
     J = JacobianFK(fk_params);
-    if T3(3,4) > -1000*0.004  % Override for debugging sake
+    if T3(3,4) > -1000*0.004  
         % See if we are going into contact
         if contact
             contact = 0;
@@ -144,7 +144,11 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
         meas = [v_ft; 1; 0; -1; 0];
         H = Hp2(1:3,[1:15,19:27]);
         b = bp2(1:7);
+        N = fk_cov(1,1);
+        % log{i-initial+1,4} = X*meas-b;
+        % [X,P,bias] = update_nocontact(meas,X,bias,P,H,b,N,J);
 
+        
         N = fk_cov(1:2,1:2);  % fine for debugging, but should change to stacked 1x1 when going back to right-invariant
         b = [b_gps1; b_gps2];
         H = [H_gps1(1:3,:); H_gps2(1:3,:)];
@@ -153,6 +157,7 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
         meas = [meas_gps1; meas_gps2];
         log{i-initial+1,4} = blkdiag(X,X)\meas-b;  % divide because left-invariant
         [X,P,bias] = update_nocontact_leftgps(meas,X,bias,P,H,b,N,J);
+        
     end
     % P will come out bigger, need to reshape it down?
     log{i-initial+1,1} = t;
