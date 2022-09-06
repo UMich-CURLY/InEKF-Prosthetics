@@ -34,6 +34,14 @@ Hz_r(1:3,16:18) = eye(3);
 Hz_l = zeros(8,27);
 Hz_l(1:3,16:18) = eye(3);
 
+b_gps1 = [0; 0; 0; 1; 0; 0; 0];
+H_gps1 = zeros(7,24);  % Only need this much for debugging purposes
+H_gps1(1:3,7:9) = eye(3);
+
+b_gps2 = [0; 0; 0; 0; 0; 1; 0];
+H_gps2 = zeros(7,24);
+H_gps2(1:3,13:15) = eye(3);
+
 rotation_variance = 0.01;
 p1_variance = 0.01;
 v1_variance = 0.001;

@@ -89,9 +89,9 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     % use T2 to determine contact
     % Could possibly include toes as extra contact point in future
     angles = gon_data{i,angle_vars};
-    fk_params{1,2} = angles(1);
-    fk_params{2,2} = angles(2);
-    fk_params{3,2} = angles(3);
+    fk_params{1,2} = angles(1)*-pi/180;  % Only using this first one for debugging
+    fk_params{2,2} = angles(2)*-pi/180;
+    fk_params{3,2} = angles(3)*-pi/180;
     J = JacobianFK(fk_params);
     if T3(3,4) > -1000*0.004  % Override for debugging sake
         % See if we are going into contact
@@ -128,26 +128,31 @@ for i = (initial+1):height(imu_data)  % 3068 is number of timesteps for which we
     v_ft = T1(1:3,1:3)\(T2(1:3,4) - T1(1:3,4));
     v_fc = T1(1:3,1:3)\(T3(1:3,4) - T1(1:3,4));
     if contact
-        v_constraint = X(1:3,1:3)\[X(1:2,8); 0];
+        v_constraint = X(1:3,1:3)\[X(1:2,8); 0];  % Does this need to be transformed into world coordinates? According to the math: no, just rotated
         b = [bp2; bd; bz];
         measp2 = [v_ft; 1; 0; -1; 0; 0];
         measd = [v_fc; 1; 0; 0; 0; -1];
         measz = [v_constraint(1:3); 0; 0; 0; 0; -1];
         meas = [measp2; measd; measz];
-        H = [Hp2; Hd; Hz_r];
+        H = [Hp2(1:3,:); Hd(1:3,:); Hz_r(1:3,:)];
         % We know model so this is fine for now
-        H = H([1:3,9:11,17:19],:);  % just want the z from the last part
         N = blkdiag(fk_cov,fk_cov,fk_cov);  % only apply cov increase to contact point
         log{i-initial+1,4} = blkdiag(X,X,X)*meas-b;
         [X,P] = update(meas,X,bias,P,H,b,N,J);
     else
-        J = J(:,1:2);
+        J = J(:,1);  % only take the first angle, even in right-invariant case
         meas = [v_ft; 1; 0; -1; 0];
         H = Hp2(1:3,[1:15,19:27]);
         b = bp2(1:7);
-        N = fk_cov(1:2,1:2);
-        log{i-initial+1,4} = X*meas-b;
-        [X,P,bias] = update_nocontact(meas,X,bias,P,H,b,N,J);
+
+        N = fk_cov(1:2,1:2);  % fine for debugging, but should change to stacked 1x1 when going back to right-invariant
+        b = [b_gps1; b_gps2];
+        H = [H_gps1(1:3,:); H_gps2(1:3,:)];
+        meas_gps1 = [T1(1:3,4); 1; 0; 0; 0];
+        meas_gps2 = [T2(1:3,4); 0; 0; 1; 0];
+        meas = [meas_gps1; meas_gps2];
+        log{i-initial+1,4} = blkdiag(X,X)\meas-b;  % divide because left-invariant
+        [X,P,bias] = update_nocontact_leftgps(meas,X,bias,P,H,b,N,J);
     end
     % P will come out bigger, need to reshape it down?
     log{i-initial+1,1} = t;
