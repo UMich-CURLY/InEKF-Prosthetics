@@ -5,7 +5,7 @@ gt_traj = zeros(len,3);
 filt_traj = zeros(len,3);
 foot_traj = {};
 thigh2foot = {};
-error_log = zeros(len,6);
+error_log = zeros(len,3);
 accel_log = zeros(len,3);
 dt = 0.005;
 for i = 1:len
@@ -44,11 +44,7 @@ for i = 1:len
     error = log{i,4};
     % Need to rethink this a bit, perhaps only log to-heel error in the
     % first place so that we don't have to deal with in-contact vs. not
-    if log{i,5}
-        error_log(i,:) = error([1:3,9:11]);  % first 3 elements of bd after first 8 (bp2)
-    else
-        error_log(i,:) = [NaN, NaN, NaN, NaN, NaN, NaN];
-    end
+    error_log(i,:) = error([1:3]);  % first 3 elements of bd after first 8 (bp2)
 
     comp_log(i,:) = [rot_diff,p_diff'];
 
@@ -82,7 +78,7 @@ title('Delta between predicted and actual femur point')
 subplot(2,3,3);
 % plot(1:len,accel_log)
 % legend('z (x)', '-x (y)', '-y (z)')
-plot(1:len,error_log(:,4:6))  % just error to heel
+plot(1:len,error_log(:,1:3))  % just error to tibia, for debugging
 legend('x','y','z')
 title('Estimated error over time')
 
