@@ -36,8 +36,12 @@ function [state,cov] = predict_nocontact(inputs,bias,dt,fk2,X,P,A,Q)
     state(1:3,6) = p2 + p2dX;
     state(1:3,7) = v2 + v2dX;
 
-    phi = expm(A*dt);  % in this scheme we've already "reduced" A when we pass it in
     AdjX = Adj_nocontact(X);
+    A(1:15,16:18) = -AdjX(1:15,1:3);
+    A(7:9,19:21) = -R;  % v1 rotation, mind the rows/columns
+    A(13:15,22:24) = -R; % v2 rotation, mind the rows/columns
+
+    phi = expm(A*dt);  % in this scheme we've already "reduced" A when we pass it in
     AdjX_plus = blkdiag(AdjX,eye(9));
     cov = phi*P*phi' + AdjX_plus*(phi*Q*phi'*dt)*AdjX_plus';
 end

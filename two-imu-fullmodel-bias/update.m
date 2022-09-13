@@ -17,16 +17,16 @@ function [state,cov,bias] = update(meas,X,zeta,P,H,b,N,Jac)
     S = H*P*H' + Nk;
     L = P*H'/S;
 
-    L_bias = L(19:27,1:end);
-    L_state = L(1:18,1:end);
-
     % Assumes measurement is formatted correctly, also assumes stacked
     % measurement beforehand
     error = blkdiag(X,X,X)*meas - b;
     error = error([1:3,9:11,17:19]);
-    bias = zeta + L_bias*error;
-    innovation = lie_groupify(L_state*error);
-    state = expm(innovation)*X;
+    innovation = L*error;
+    innovation_state = innovation(1:18,:);
+    innovation_bias = innovation(19:27,:);
+    bias = zeta + innovation_bias;
+    innovation_state = lie_groupify(innovation_state);
+    state = expm(innovation_state)*X;
     LH = L*H;
     cov = (eye(size(LH))-LH)*P*(eye(size(LH))-LH)' + L*Nk*L';
 end

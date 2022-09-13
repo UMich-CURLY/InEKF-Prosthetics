@@ -9,11 +9,16 @@ d = X(1:3,8);
 g = [0 0 -9.81]; % should this be negative? I always get this backwards
 
 A = zeros(27,27);
+% A_X
 A(4:6,7:9) = eye(3);
 A(10:12,13:15) = eye(3);
 A(7:9,1:3) = skew3x3(g);
 A(13:15,1:3) = skew3x3(g);
-% rest needs to be constructed online
+% A_{X theta} needs to be constructed online
+% A_{theta}
+% A(19:27,19:27) = zeros(9,9);  % each bias just translates directly to
+% itself, see rhartleyb2018, pp. 6. Brownian motion means the only dynamics
+% is the Gaussian noise.
 
 bp2 = [0; 0; 0; 1; 0; -1; 0; 0];
 bd = [0; 0; 0; 1; 0; 0; 0; -1];
@@ -22,6 +27,7 @@ bz = [0; 0; 0; 0; 0; 0; 0; -1];
 Hp2 = zeros(8,27);
 Hp2(1:3,4:6) = -eye(3);
 Hp2(1:3,10:12) = eye(3);
+
 
 Hd = zeros(8,27);
 Hd(1:3,4:6) = -eye(3);

@@ -1,5 +1,6 @@
 len = length(log);
 
+
 comp_log = zeros(len,6);
 gt_traj = zeros(len,3);
 filt_traj = zeros(len,3);
@@ -66,24 +67,24 @@ figure;
 subplot(2,3,1);
 % plot(1:len,comp_log(:,1:3))
 % legend('z','y','x')
-plot(1:len,comp_log(:,2))
+plot(1:len,comp_log(1:len,2))
 legend('y')
 title('Difference in Euler angles between ground truth & predicted')
 
 subplot(2,3,2);
-plot(1:len,comp_log(:,4:6))
+plot(1:len,comp_log(1:len,4:6))
 legend('x','y','z')
 title('Delta between predicted and actual femur point')
 
 subplot(2,3,3);
 % plot(1:len,accel_log)
 % legend('z (x)', '-x (y)', '-y (z)')
-plot(1:len,error_log(:,1:3))  % just error to tibia, for debugging
+plot(1:len,error_log(1:len,1:3))  % just error to tibia, for debugging
 legend('x','y','z')
 title('Estimated error over time')
 
 subplot(2,3,4);
-plot3(gt_traj(:,1),gt_traj(:,2),gt_traj(:,3),'Color','g');
+plot3(gt_traj(1:len,1),gt_traj(1:len,2),gt_traj(1:len,3),'Color','g');
 hold on; axis equal;
 plot3(filt_traj(:,1),filt_traj(:,2),filt_traj(:,3),'Color','b');
 scatter3(foot_traj(:,1),foot_traj(:,2),foot_traj(:,3),'Color','r');
@@ -97,6 +98,6 @@ title('Trajectories: ground truth, pred. thigh, foot')
 legend('GT','Filt','Filt (Heel)')
 
 subplot(2,3,5);
-plot(1:len,thigh2foot)
+plot(1:len,thigh2foot(1:len,:))
 legend('x','y','z')
 title('Thigh to Calcaneus Components Over Time')

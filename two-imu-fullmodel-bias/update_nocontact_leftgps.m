@@ -6,8 +6,13 @@ function [state,cov,bias] = update_nocontact_leftgps(meas,X,zeta,P,H,b,N,Jac)
     % Inverse X for left-invariant case
     % Try replacing this with an arbitrary covariance and see how it does
 
-    S = H*P*H' + Nk;
-    L = P*H'/S;
+    % Make P left-invariant form, then turn back at the end
+    AdjXinv = Adj_nocontact(X\eye(size(X)));
+    AdjXinv = blkdiag(AdjXinv,eye(9));
+    Pl = AdjXinv*P*AdjXinv';
+
+    S = H*Pl*H' + Nk;
+    L = Pl*H'/S;
 
     L_bias = L(16:24,1:end);
     L_state = L(1:15,1:end);
@@ -20,5 +25,9 @@ function [state,cov,bias] = update_nocontact_leftgps(meas,X,zeta,P,H,b,N,Jac)
     state = X*expm(innovation);
     LH = L*H;
     % more stable form of covariance update
-    cov = (eye(size(LH))-LH)*P*(eye(size(LH))-LH)' + L*Nk*L';
+    cov = (eye(size(LH))-LH)*Pl*(eye(size(LH))-LH)' + L*Nk*L';
+
+    AdjX = Adj_nocontact(state);
+    AdjX = blkdiag(AdjX,eye(9));
+    cov = AdjX*cov*AdjX';
 end

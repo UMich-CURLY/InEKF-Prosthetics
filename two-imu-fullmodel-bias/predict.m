@@ -23,9 +23,9 @@ function [state,cov] = predict(inputs,bias,dt,fk2,X,P,A,Q)
     AdjX = Adj(X);
     AdjX_plus = blkdiag(AdjX, eye(9));  % identity for the three 3D biases
 
-    A(1:18,19:21) = AdjX(1:18,1:3);
-    A(4:6,22:24) = -R;  % v1 rotation
-    A(10:12,25:27) = -R; % v2 rotation
+    A(1:18,19:21) = -AdjX(1:18,1:3);  % The negative is important
+    A(7:9,22:24) = -R;  % v1 rotation, mind the rows/columns
+    A(13:15,25:27) = -R; % v2 rotation, mind the rows/columns
     
     RdX = expm(omega*dt);
     v1dX = (R*(a1-ba1) + g)*dt;

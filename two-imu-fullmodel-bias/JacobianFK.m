@@ -25,4 +25,5 @@ function J = JacobianFK(fk_params)
     J = [dxd1, dxd2, dxd3;
          dyd1, dyd2, dyd3;
          dzd1, dzd2, dzd3];
+    J = eye(3);  % HACK, fix once a better solution is found
 end
